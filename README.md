@@ -64,6 +64,8 @@ Qwen/Qwen3-32B
 Qwen/Qwen3-VL-32B-Instruct
 ```
 
+Unofficial community tool. Not affiliated with or endorsed by Tenstorrent Inc.
+
 ## License
 
 MIT. See `LICENSE`.
