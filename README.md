@@ -1,0 +1,69 @@
+# Tenstorrent CLI
+
+Tenstorrent CLI for `console.tenstorrent.com`: chat REPL plus Wan 2.2 text-to-video generation.
+
+## Install
+
+From this repository:
+
+```bash
+bun install
+bun install -g .
+```
+
+Or, after package publication:
+
+```bash
+npm i -g tenstorrent-cli
+```
+
+## Authentication
+
+Create a Tenstorrent Console account at `https://console.tenstorrent.com`, generate an API key, and export it:
+
+```bash
+export TENSTORRENT_KEY="your-api-key"
+```
+
+The CLI reads only `TENSTORRENT_KEY`; it does not read or store keys from files.
+
+## Usage
+
+```bash
+tenstorrent
+```
+
+For local development:
+
+```bash
+bun run start
+```
+
+## Commands
+
+```text
+/help             Show commands
+/model            Show current model and catalog
+/model <id>       Switch between DeepSeek-R1, Qwen3-32B, and Qwen3-VL
+/video <prompt>   Submit a Wan 2.2 video job, poll it, and save ./output/video-*.mp4
+/clear            Clear chat history
+/exit             Exit
+```
+
+Default chat model:
+
+```text
+Qwen/Qwen3-VL-32B-Instruct
+```
+
+Supported chat models:
+
+```text
+deepseek-ai/DeepSeek-R1-0528
+Qwen/Qwen3-32B
+Qwen/Qwen3-VL-32B-Instruct
+```
+
+## License
+
+MIT. See `LICENSE`.
