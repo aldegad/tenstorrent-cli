@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 
 import { mkdir, writeFile } from "node:fs/promises";
+import { clearLine, cursorTo } from "node:readline";
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 
@@ -65,12 +66,12 @@ class ProgressIndicator {
 
   succeed(summary: string) {
     this.stop();
-    console.error(`✓ ${summary}`);
+    output.write(`✓ ${summary}\n`);
   }
 
   fail(summary: string) {
     this.stop();
-    console.error(`✗ ${summary}`);
+    output.write(`✗ ${summary}\n`);
   }
 
   stop() {
@@ -80,14 +81,21 @@ class ProgressIndicator {
     }
 
     if (output.isTTY) {
-      console.error("\r\x1b[K");
+      this.clearLine();
     }
   }
 
   private render() {
     const frame = SPINNER_FRAMES[this.frameIndex % SPINNER_FRAMES.length];
     this.frameIndex += 1;
-    console.error(`\r\x1b[K${frame} ${this.label}  ${formatElapsed(Date.now() - this.startTime)}`);
+    this.clearLine();
+    output.write(`${frame} ${this.label}  ${formatElapsed(Date.now() - this.startTime)}`);
+  }
+
+  private clearLine() {
+    cursorTo(output, 0);
+    clearLine(output, 0);
+    output.write("\r\x1b[K");
   }
 }
 
