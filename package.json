@@ -1,6 +1,6 @@
 {
   "name": "tenstorrent-cli",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Tenstorrent CLI: chat REPL plus Wan 2.2 video generation.",
   "license": "MIT",
   "type": "module",
