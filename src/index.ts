@@ -11,6 +11,10 @@ type ChatMessage = {
   role: "user" | "assistant" | "system";
   content: string;
 };
+export type CommandResult = {
+  shouldExit: boolean;
+  failed: boolean;
+};
 
 const API_BASE = "https://console.tenstorrent.com";
 const CLI_VERSION = "v0.2";
@@ -59,16 +63,12 @@ const DEFAULTS = {
 } as const;
 
 const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
-const key = process.env.TENSTORRENT_KEY;
 let currentModel: ChatModel = DEFAULTS.chat;
 let history: ChatMessage[] = [];
 
-if (!key) {
-  console.error("TENSTORRENT_KEY is required.");
-  console.error("Create an API key at https://console.tenstorrent.com and run:");
-  console.error('  export TENSTORRENT_KEY="your-api-key"');
-  process.exit(1);
-}
+const CONTINUE_OK: CommandResult = { shouldExit: false, failed: false };
+const CONTINUE_FAILED: CommandResult = { shouldExit: false, failed: true };
+const EXIT_OK: CommandResult = { shouldExit: true, failed: false };
 
 class ProgressIndicator {
   private frameIndex = 0;
@@ -129,13 +129,27 @@ class ProgressIndicator {
 
 function authHeaders() {
   return {
-    Authorization: `Bearer ${key}`,
+    Authorization: `Bearer ${getRequiredApiKey()}`,
     "Content-Type": "application/json",
   };
 }
 
 function authOnlyHeaders() {
-  return { Authorization: `Bearer ${key}` };
+  return { Authorization: `Bearer ${getRequiredApiKey()}` };
+}
+
+function getRequiredApiKey() {
+  const key = process.env.TENSTORRENT_KEY;
+  if (!key) {
+    throw new Error(
+      'TENSTORRENT_KEY is required.\nCreate an API key at https://console.tenstorrent.com and run:\n  export TENSTORRENT_KEY="your-api-key"',
+    );
+  }
+  return key;
+}
+
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
 }
 
 async function requestJson<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -573,99 +587,125 @@ function setModel(inputModel: string) {
   };
   const nextModel = aliases[inputModel] ?? inputModel;
   if (!isCatalogModel("chat", nextModel)) {
-    console.log("✗ 모르는 chat 모델이야. /model 로 카탈로그를 봐줘.");
-    return;
+    console.error("✗ 모르는 chat 모델이야. /model 로 카탈로그를 봐줘.");
+    return false;
   }
   currentModel = nextModel as ChatModel;
   console.log(`✓ 모델 → ${currentModel}${modelKind(currentModel) ? ` (${modelKind(currentModel)})` : ""}`);
+  return true;
 }
 
-async function main() {
+export async function handleLine(rawLine: string): Promise<CommandResult> {
+  const line = rawLine.trim();
+  if (!line) return CONTINUE_OK;
+  if (line === "/exit") return EXIT_OK;
+  if (line === "/help") {
+    printHelp();
+    return CONTINUE_OK;
+  }
+  if (line === "/clear") {
+    history = [];
+    console.log("✓ 대화 기록 지웠어.");
+    return CONTINUE_OK;
+  }
+  if (line === "/model") {
+    printCatalog();
+    return CONTINUE_OK;
+  }
+  if (line.startsWith("/model ")) {
+    return setModel(line.slice("/model ".length).trim()) ? CONTINUE_OK : CONTINUE_FAILED;
+  }
+  if (line.startsWith("/image ")) {
+    try {
+      const outputPath = await generateImage(line.slice("/image ".length).trim());
+      if (outputPath) {
+        console.log(`saved: ${outputPath}`);
+        return CONTINUE_OK;
+      }
+      return CONTINUE_FAILED;
+    } catch (error) {
+      console.error(errorMessage(error));
+      return CONTINUE_FAILED;
+    }
+  }
+  if (line.startsWith("/video ")) {
+    try {
+      const outputPath = await generateVideo(line.slice("/video ".length).trim());
+      console.log(`saved: ${outputPath}`);
+      return CONTINUE_OK;
+    } catch (error) {
+      console.error(errorMessage(error));
+      return CONTINUE_FAILED;
+    }
+  }
+  if (line.startsWith("/tts ")) {
+    try {
+      const outputPath = await generateTts(line.slice("/tts ".length).trim());
+      if (outputPath) {
+        console.log(`saved: ${outputPath}`);
+        return CONTINUE_OK;
+      }
+      return CONTINUE_FAILED;
+    } catch (error) {
+      console.error(errorMessage(error));
+      return CONTINUE_FAILED;
+    }
+  }
+  if (line.startsWith("/stt ")) {
+    try {
+      const text = await transcribe(line.slice("/stt ".length).trim());
+      return text === undefined ? CONTINUE_FAILED : CONTINUE_OK;
+    } catch (error) {
+      console.error(errorMessage(error));
+      return CONTINUE_FAILED;
+    }
+  }
+  if (line.startsWith("/")) {
+    console.error("✗ 모르는 명령이야. /help 쳐봐.");
+    return CONTINUE_FAILED;
+  }
+  try {
+    console.log(await chat(line));
+    return CONTINUE_OK;
+  } catch (error) {
+    console.error(errorMessage(error));
+    return CONTINUE_FAILED;
+  }
+}
+
+export async function main() {
+  getRequiredApiKey();
   console.log(`✻ 안녕~ 토렌디시야! tenstorrent-cli ${CLI_VERSION}`);
   console.log(`   현재 모델 ${currentModel} (chat)`);
   console.log("   /video /image /tts /stt /model /help /clear /exit");
 
   const rl = createInterface({ input, output });
   const interactive = Boolean(input.isTTY);
-
-  async function handleLine(rawLine: string) {
-    const line = rawLine.trim();
-    if (!line) return false;
-    if (line === "/exit") return true;
-    if (line === "/help") {
-      printHelp();
-      return false;
-    }
-    if (line === "/clear") {
-      history = [];
-      console.log("✓ 대화 기록 지웠어.");
-      return false;
-    }
-    if (line === "/model") {
-      printCatalog();
-      return false;
-    }
-    if (line.startsWith("/model ")) {
-      setModel(line.slice("/model ".length).trim());
-      return false;
-    }
-    if (line.startsWith("/image ")) {
-      try {
-        const outputPath = await generateImage(line.slice("/image ".length).trim());
-        if (outputPath) console.log(`saved: ${outputPath}`);
-      } catch (error) {
-        console.error(error instanceof Error ? error.message : error);
-      }
-      return false;
-    }
-    if (line.startsWith("/video ")) {
-      try {
-        const outputPath = await generateVideo(line.slice("/video ".length).trim());
-        console.log(`saved: ${outputPath}`);
-      } catch (error) {
-        console.error(error instanceof Error ? error.message : error);
-      }
-      return false;
-    }
-    if (line.startsWith("/tts ")) {
-      try {
-        const outputPath = await generateTts(line.slice("/tts ".length).trim());
-        if (outputPath) console.log(`saved: ${outputPath}`);
-      } catch (error) {
-        console.error(error instanceof Error ? error.message : error);
-      }
-      return false;
-    }
-    if (line.startsWith("/stt ")) {
-      try {
-        await transcribe(line.slice("/stt ".length).trim());
-      } catch (error) {
-        console.error(error instanceof Error ? error.message : error);
-      }
-      return false;
-    }
-    if (line.startsWith("/")) {
-      console.log("✗ 모르는 명령이야. /help 쳐봐.");
-      return false;
-    }
-    try {
-      console.log(await chat(line));
-    } catch (error) {
-      console.error(error instanceof Error ? error.message : error);
-    }
-    return false;
-  }
+  let hadFailure = false;
 
   try {
     rl.setPrompt("> ");
     if (interactive) rl.prompt();
     for await (const line of rl) {
-      if (await handleLine(line)) break;
+      const result = await handleLine(line);
+      hadFailure ||= result.failed;
+      if (result.shouldExit) break;
       if (interactive) rl.prompt();
     }
   } finally {
     rl.close();
   }
+
+  if (!interactive && hadFailure) {
+    process.exitCode = 1;
+  }
 }
 
-await main();
+if (import.meta.main || process.argv[1]?.endsWith("/bin/tenstorrent")) {
+  try {
+    await main();
+  } catch (error) {
+    console.error(errorMessage(error));
+    process.exitCode = 1;
+  }
+}
