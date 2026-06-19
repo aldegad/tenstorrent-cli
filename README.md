@@ -42,12 +42,15 @@ bun run start
 ## Commands
 
 ```text
-/help             Show commands
-/model            Show current model and catalog
-/model <id>       Switch between DeepSeek-R1, Qwen3-32B, and Qwen3-VL
-/video <prompt>   Submit a Wan 2.2 video job, poll it, and save ./output/video-*.mp4
-/clear            Clear chat history
-/exit             Exit
+/help                         Show commands
+/model                        Show current model and catalog
+/model <id>                   Switch between DeepSeek-R1, Qwen3-32B, Qwen3-VL, and Gemma-4
+/image <prompt> [--model id]  Generate an image and save under ./output
+/video <prompt> [--model id]  Submit a Wan 2.2 video job, poll it, and save ./output/video-*.mp4
+/tts <text> [--model id]      Generate speech if the endpoint is available
+/stt <file>                   Transcribe audio if the endpoint is available
+/clear                        Clear chat history
+/exit                         Exit
 ```
 
 Default chat model:
@@ -62,6 +65,7 @@ Supported chat models:
 deepseek-ai/DeepSeek-R1-0528
 Qwen/Qwen3-32B
 Qwen/Qwen3-VL-32B-Instruct
+google/gemma-4-31B-it
 ```
 
 Unofficial community tool. Not affiliated with or endorsed by Tenstorrent Inc.
